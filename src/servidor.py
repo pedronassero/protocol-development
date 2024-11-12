@@ -1,6 +1,7 @@
 from socket import *
 import threading
 import hashlib
+import json
 
 online_clients = {}
 available_images = {}
@@ -24,8 +25,8 @@ def handle_register(message, client_address, server):
 
     for images_info in splitted_images:
         try:
-            md5_hash, name = images_info.split(',')
-            images.append((md5_hash, name))
+            image_md5, image_name = images_info.split(',')
+            images.append({'md5': image_md5, 'name': image_name})
         except ValueError:
             response = '\033[31mERR INVALID_MESSAGE_FORMAT\033[0m'
             server.sendto(response.encode(), client_address)
@@ -40,12 +41,20 @@ def handle_register(message, client_address, server):
     
     for client, info in online_clients.items():
         print(f"Client: {client}, TCP Port: {info['port']}, PASS: {info['password']}")
-    """
-    This function gets all the information from the client
-    then it saves client information in 'online_clients{}'
-    and saves client images in 'shared_images{}'
-    """
+
     server.sendto(response.encode(), client_address)
+
+
+def handle_list(client_address, server):
+    for client_address, images in available_images.items():
+        client_info = online_clients.get(client_address, {})
+        client_tcp_port = client_info.get('port', 'Unknown')
+        print(f"\nClient: {client_address} (TCP Port: {client_tcp_port})")
+        
+        for image_info in images:
+            md5 = image_info['md5']
+            name = image_info['name']
+            print(f"  - Image Name: {name}, MD5: {md5}")
 
 
 def handle_command(server, message, client_address):
@@ -58,7 +67,7 @@ def handle_command(server, message, client_address):
         #handle_update()
         response = 'UPD'
     elif command[0] == 'LST':
-        #handle_list()
+        handle_list(client_address, server)
         response = 'LST'
     elif command[0] == 'END':
         #handle_end()

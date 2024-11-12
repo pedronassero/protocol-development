@@ -1,6 +1,7 @@
 from socket import *
 import time
 import os
+import json
 
 
 def initializing():
@@ -29,8 +30,8 @@ def udp_server():
     server_port = 13377
     udp_client = socket(AF_INET, SOCK_DGRAM)
 
-    message = input("\033[36mMessage: \033[0m").encode()
-    udp_client.sendto(message, (server, server_port))
+    message = input("\033[36mMessage: \033[0m")
+    udp_client.sendto(message.encode(), (server, server_port))
 
     try:
         response, server_address = udp_client.recvfrom(2048)
@@ -41,14 +42,15 @@ def udp_server():
     udp_client.close()
 
 
+"""TCP connection with Peer"""
+#def tcp_peer():
+
+
 def main():
     initializing()
     print("\033[34mBefore connecting to the server, take note of your available port:\033[0m", end='')
     print(f"\033[32m {find_available_port()}\033[0m")
     udp_server()
-
-
-"""TCP connection with Peer"""
 
 
 if __name__ == '__main__':
