@@ -43,18 +43,28 @@ def handle_register(message, client_address, server):
         print(f"Client: {client}, TCP Port: {info['port']}, PASS: {info['password']}")
 
     server.sendto(response.encode(), client_address)
+    server.sendto("END".encode(), client_address)
 
 
 def handle_list(client_address, server):
-    for client_address, images in available_images.items():
-        client_info = online_clients.get(client_address, {})
-        client_tcp_port = client_info.get('port', 'Unknown')
-        print(f"\nClient: {client_address} (TCP Port: {client_tcp_port})")
-        
-        for image_info in images:
-            md5 = image_info['md5']
-            name = image_info['name']
-            print(f"  - Image Name: {name}, MD5: {md5}")
+    try:
+        if not available_images:
+            server.sendto("No images available.".encode(), client_address)
+            return
+
+        for addr, images in available_images.items():
+            tcp_port = online_clients.get(addr, {}).get('port', 'Unknown')
+
+            for image_info in images:
+                message = f"Client: {addr}, TCP Port: {tcp_port}, MD5: {image_info['md5']}, Name: {image_info['name']}"
+                server.sendto(message.encode(), client_address)
+
+        server.sendto("Available images ↑".encode(), client_address)
+        server.sendto("END".encode(), client_address)
+
+    except Exception as e:
+        print(f"Erro ao enviar a lista de imagens: {e}")
+
 
 
 def handle_command(server, message, client_address):
@@ -68,7 +78,6 @@ def handle_command(server, message, client_address):
         response = 'UPD'
     elif command[0] == 'LST':
         handle_list(client_address, server)
-        response = 'LST'
     elif command[0] == 'END':
         #handle_end()
         response = 'END'
