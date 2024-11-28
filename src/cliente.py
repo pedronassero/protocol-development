@@ -2,8 +2,9 @@ from socket import *
 import time
 import os
 import argparse
+import sys
 
-
+# Making client able to write arguments when initializing the application
 def parse_arguments():
     parser = argparse.ArgumentParser(description="Cliente UDP para comunicação com o servidor.")
     
@@ -14,6 +15,7 @@ def parse_arguments():
     
     return args.ip, args.diretorio
 
+# Styling terminal after initializing function
 def initializing():
     os.system('cls')
     print("\033[33mInicializing\033[0m", end='')
@@ -24,7 +26,7 @@ def initializing():
     
     os.system('cls')
 
-
+# Finding an available port on client's system
 def find_available_port():
     temp_socket = socket(AF_INET, SOCK_STREAM)
     temp_socket.bind(('', 0))
@@ -54,14 +56,17 @@ def udp_server(server_ip, directory):
                 elif "ERR" in response_text or "No images available" in response_text:
                     print(f"\033[31m{response_text}\033[0m")
                     break
+                elif "OK CLIENT_FINISHED" in response_text:
+                    print("\033[36mResponse:\033[0m", response_text)
+                    print("\033[33mShutting down...\033[0m")
+                    udp_client.close()
+                    sys.exit()
 
                 print("\033[36mResponse:\033[0m", response_text)
 
             except ConnectionResetError as e:
                 print("Connection was reset by the server:", e)
                 break
-
-    udp_client.close()
 
 
 
