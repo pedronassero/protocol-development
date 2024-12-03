@@ -3,6 +3,7 @@ import time
 import os
 import argparse
 import sys
+import hashlib
 
 # Making client able to write arguments when initializing the application
 def parse_arguments():
@@ -34,6 +35,25 @@ def find_available_port():
     temp_socket.close()
 
     return available_port
+
+
+def md5_calculator(file):
+    md5 = hashlib.md5()
+    with open(file, "rb") as f:
+        for chunk in iter(lambda: f.read(4096), b""):
+            md5.update(chunk)
+    return md5.hexdigest()
+
+def list_directory_images(directory):
+    """Lista imagens no diretório e retorna seus hashes"""
+    imagens = []
+    for file in os.listdir(directory):
+        path = os.path.join(directory, file) 
+        if os.path.isfile(path):
+            if file.lower().endswith(('.png', '.jpg', '.jpeg')):
+                hash_md5 = md5_calculator(path)
+                imagens.append(f"{hash_md5},{file}")
+    return ";".join(imagens)
 
 
 """UDP connection with Server"""
@@ -79,6 +99,15 @@ def main():
     initializing()
     print("\033[34mBefore connecting to the server, take note of your available port:\033[0m", end='')
     print(f"\033[32m {find_available_port()}\033[0m")
+
+    print("\033[34mImages in the directory:\033[0m")
+    images = list_directory_images(directory)
+    
+    if images:
+        print(f"\033[32m{images}\033[0m")
+    else:
+        print("\033[31mNo images found in the directory.\033[0m")
+
     udp_server(server_ip, directory)
 
 

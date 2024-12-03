@@ -121,11 +121,13 @@ def handle_list(client_address, server):
 
 def handle_end(message, client_address, server):
     values = message.split(" ")
-    if len(values) < 3:
+    if len(values) < 3: 
         response = '\033[31mERR INVALID_MESSAGE_FORMAT\033[0m'
-    else:
-        client_password = values[1]
-        client_port = values[2]
+        server.sendto(response.encode(), client_address)
+        return 
+
+    client_password = values[1]
+    client_port = values[2]
 
     hashed_pass = hashlib.sha256(client_password.encode()).hexdigest()
     stored_pass = online_clients.get(client_address, {}).get('password')
@@ -134,13 +136,13 @@ def handle_end(message, client_address, server):
         response = '\033[31mERR IP_REGISTERED_WITH_DIFFERENT_PASSWORD\033[0m'
         server.sendto(response.encode(), client_address)
     else:
-        del online_clients[client_address]
-        del available_images[client_address]
+        online_clients.pop(client_address, None)
+        available_images.pop(client_address, None)
 
         response = '\033[32mOK CLIENT_FINISHED\033[0m'
         server.sendto(response.encode(), client_address)
         print(f"Client {client_address} has disconnected.")
-
+        
 
 def handle_command(server, message, client_address):
     print(f"Received message from {client_address}: {message}")
@@ -163,8 +165,10 @@ def handle_command(server, message, client_address):
 def main():
     server_port = 13377
     server = socket(AF_INET, SOCK_DGRAM)
-    server.bind(('', server_port))
-    print(f'Server is listening on port {server_port}...')
+    server.bind(('0.0.0.0', server_port))
+    local_ip = gethostbyname(getfqdn())
+
+    print(f"Server IP {local_ip} is listening on port {server_port}...")
 
     while True:
         message, client_address = server.recvfrom(2048)
