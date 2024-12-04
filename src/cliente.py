@@ -4,6 +4,8 @@ import os
 import argparse
 import sys
 import hashlib
+import threading
+
 
 # Making client able to write arguments when initializing the application
 def parse_arguments():
@@ -36,7 +38,7 @@ def find_available_port():
 
     return available_port
 
-
+# Calcula a MD5 das imagens do diretório que o cliente passou
 def md5_calculator(file):
     md5 = hashlib.md5()
     with open(file, "rb") as f:
@@ -44,8 +46,8 @@ def md5_calculator(file):
             md5.update(chunk)
     return md5.hexdigest()
 
+# Lista imagens no diretório e retorna seus hashes
 def list_directory_images(directory):
-    """Lista imagens no diretório e retorna seus hashes"""
     imagens = []
     for file in os.listdir(directory):
         path = os.path.join(directory, file) 
@@ -88,17 +90,31 @@ def udp_server(server_ip, directory):
                 print("Connection was reset by the server:", e)
                 break
 
+"""
+def tcp_control(tcp_port):
+    _socket = socket(AF_INET, SOCK_STREAM)
+    _socket.setsockopt(SOL_SOCKET, SO_REUSEADDR, 1)
+    _socket.bind(('', tcp_port))
+    _socket.listen(4096)
 
-
-"""TCP connection with Peer"""
-#def tcp_peer():
+    while True:
+        client, addr = _socket.accept()
+        print(f"Nova conexão TCP de {addr}")
+        threading.Thread(target=servico_tcp, args=(client,)).start()
+"""
 
 
 def main():
     server_ip, directory = parse_arguments()
     initializing()
-    print("\033[34mBefore connecting to the server, take note of your available port:\033[0m", end='')
-    print(f"\033[32m {find_available_port()}\033[0m")
+    tcp_port = find_available_port()
+    print(f"\033[34mBefore connecting to the server, take note of your available port: {tcp_port}\033[0m", end='')
+    
+    """
+    tcp_thread = threading.Thread(target=tcp_control, args=(tcp_port,))
+    tcp_thread.daemon = True  # Permite encerrar a thread automaticamente ao sair do programa
+    tcp_thread.start()
+    """
 
     print("\033[34mImages in the directory:\033[0m")
     images = list_directory_images(directory)
