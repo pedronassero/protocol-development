@@ -108,7 +108,7 @@ def main():
     server_ip, directory = parse_arguments()
     initializing()
     tcp_port = find_available_port()
-    print(f"\033[34mBefore connecting to the server, take note of your available port: {tcp_port}\033[0m", end='')
+    print(f"\033[34mA TCP connection will be opened on port: {tcp_port}\033[0m")
     
     """
     tcp_thread = threading.Thread(target=tcp_control, args=(tcp_port,))
