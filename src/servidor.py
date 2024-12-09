@@ -54,10 +54,12 @@ def handle_update(message, client_address, server):
     values = message.split(" ")
     if len(values) < 4:
         response = '\033[31mERR INVALID_MESSAGE_FORMAT\033[0m'
-    else:
-        client_password = values[1]
-        client_port = values[2]
-        client_images = values[3]
+        server.sendto(response.encode(), client_address)
+        return
+
+    client_password = values[1]
+    client_port = values[2]
+    client_images = values[3]
 
     hashed_pass = hashlib.sha256(client_password.encode()).hexdigest()
     stored_pass = online_clients.get(client_address, {}).get('password')
@@ -65,39 +67,42 @@ def handle_update(message, client_address, server):
     if hashed_pass != stored_pass:
         response = '\033[31mERR IP_REGISTERED_WITH_DIFFERENT_PASSWORD\033[0m'
         server.sendto(response.encode(), client_address)
-    else:
-        """
-        Após verificar a senha, o código recupera as imagens existentes do cliente usando available_images.get(client_address, [])
-        e processa as novas imagens enviadas. As novas imagens são extraídas da string, validadas e armazenadas em new_images. 
-        Em seguida, as novas imagens são adicionadas às imagens existentes com existing_images.extend(new_images). 
-        O dicionário available_images é então atualizado para refletir a lista combinada de imagens.
-        """
-        existing_images = available_images.get(client_address, [])
+        return
 
-        splitted_images = client_images.split(';')
-        new_images = []
+    existing_images = available_images.get(client_address, [])
 
-        for images_info in splitted_images:
-            try:
-                image_md5, image_name = images_info.split(',')
+    existing_hashes = {img['md5'] for img in existing_images}
+
+    splitted_images = client_images.split(';')
+    new_images = []
+
+    for images_info in splitted_images:
+        try:
+            image_md5, image_name = images_info.split(',')
+            if image_md5 not in existing_hashes:
                 new_images.append({'md5': image_md5, 'name': image_name})
-            except ValueError:
-                response = '\033[31mERR INVALID_MESSAGE_FORMAT\033[0m'
-                server.sendto(response.encode(), client_address)
-                return
+            else:
+                print(f"Imagem {image_name} já está registrada no servidor.")
+        except ValueError:
+            response = '\033[31mERR INVALID_MESSAGE_FORMAT\033[0m'
+            server.sendto(response.encode(), client_address)
+            return
 
+    if new_images:
         existing_images.extend(new_images)
-
         available_images[client_address] = existing_images
 
-        num_images = len(existing_images)
-        response = f'\033[32mOK {num_images}_REGISTERED_FILES\033[0m'
+        num_new_images = len(new_images)
+        response = f'\033[32mOK {num_new_images}_REGISTERED_FILES\033[0m'
+    else:
+        response = '\033[33mVocê não tem novas imagens para adicionar.\033[0m'
 
-        for client, info in online_clients.items():
-            print(f"Client: {client}, TCP Port: {info['port']}, PASS: {info['password']}")
+    for client, info in online_clients.items():
+        print(f"Client: {client}, TCP Port: {info['port']}, PASS: {info['password']}")
 
-        server.sendto(response.encode(), client_address)
-        server.sendto("END".encode(), client_address)
+    server.sendto(response.encode(), client_address)
+    server.sendto(b"END", client_address)
+
 
 def handle_list(client_address, server):
     try:
@@ -141,6 +146,7 @@ def handle_end(message, client_address, server):
 
         response = '\033[32mOK CLIENT_FINISHED\033[0m'
         server.sendto(response.encode(), client_address)
+        server.sendto("END".encode(), client_address)
         print(f"Client {client_address} has disconnected.")
         
 
