@@ -65,7 +65,7 @@ def configurar_ambiente():
     print("\033[33mGerando senha aleatória...\033[0m")
     time.sleep(2)  
 
-    print(f"\033[32mSua senha gerada é: {senha}\033[0m")
+    print(f"\033[32mSua sugestão de senha gerada é: {senha}\033[0m")
     time.sleep(1)
 
     print("\033[33mImagens no diretório:\033[0m")
@@ -125,7 +125,7 @@ def baixar_imagem_tcp(hash_imagem, ip_cliente, porta_cliente):
         # Envia a mensagem no formato GET <hash>
         mensagem = f"GET {hash_imagem}"
         tcp_socket.sendall(mensagem.encode())
-        print(f"\033[34mSolicitação enviada: {mensagem}\033[0m")
+        print(f"\033[34mSolicitação enviada...\033[0m")
 
         # Caminho para salvar a imagem
         caminho_imagem = os.path.join(diretorio, f"baixado_{hash_imagem}.jpg")
@@ -189,21 +189,43 @@ def enviar_receber_udp(udp_client, mensagem):
     server_port = 13377
 
     try:
-      udp_client.sendto(mensagem.encode(), (ip, server_port)) 
+        udp_client.sendto(mensagem.encode(), (ip, server_port))
 
-      while True:
-        response, server_address = udp_client.recvfrom(2048)
-        response_text = response.decode()
+        imagens_disponiveis = []
 
-        if response_text == "END":
-          break
-        elif "ERR" in response_text or "No images available" in response_text:
-          print(f"\033[31m{response_text}\033[0m")
-          break
-        else:
-          print("\033[36mResponse:\033[0m", response_text)
+        while True:
+            response, server_address = udp_client.recvfrom(2048)
+            response_text = response.decode()
+
+            if response_text == "END":
+                break
+            elif "ERR" in response_text or "No images available" in response_text:
+                print(f"\033[31m{response_text}\033[0m")
+                break
+            else:
+                if mensagem == "LST":
+                    # Processa a resposta no formato MD51,NOME1,IP1:PORTA1,...;MD52,NOME2,...
+                    if response_text.strip():
+                        imagens = response_text.split(";")  # Divide as imagens pelo ponto e vírgula
+                        print("\n\033[33m--- Lista de Imagens ---\033[0m")
+                        for idx, imagem in enumerate(imagens, start=1):
+                            if imagem.strip():
+                                md5, nome, *ips_portas = imagem.split(",")
+                                ips_portas_str = ", ".join(ips_portas)
+                                print(f"{idx} - {nome} - {md5} - [{ips_portas_str}]")
+
+                                # Adiciona os detalhes da imagem à lista
+                                imagens_disponiveis.append({
+                                    "index": idx,
+                                    "md5": md5,
+                                    "nome": nome,
+                                    "ips_portas": ips_portas
+                                })
+                else:
+                  print("\033[36mResponse:\033[0m", response_text)
+        return imagens_disponiveis
     except ConnectionResetError as e:
-      print("Connection was reset by the server:", e)
+        print("Connection was reset by the server:", e)
 
 
 
@@ -213,7 +235,6 @@ def servico_tcp(client):
     try:
         # Recebe a solicitação do cliente
         data = client.recv(1024).decode().strip()
-        print(f"\033[34mMensagem recebida via TCP: {data}\033[0m")
 
         if not data.startswith("GET "):
             client.send(b"ERR INVALID_REQUEST_FORMAT\n")
@@ -234,23 +255,19 @@ def servico_tcp(client):
                     break
 
         if imagem_encontrada:
-            print(f"\033[32mImagem correspondente encontrada: {imagem_encontrada}\033[0m")
             caminho_imagem = os.path.join(diretorio, imagem_encontrada)
 
             # Envia o conteúdo da imagem para o cliente
             with open(caminho_imagem, "rb") as f:
                 while (chunk := f.read(1024)):
                     client.send(chunk)
-            print(f"\033[32mImagem {imagem_encontrada} enviada com sucesso.\033[0m")
         else:
             client.send(b"ERR IMAGE_NOT_FOUND\n")
-            print("\033[31mHash não encontrado.\033[0m")
 
     except Exception as e:
         print(f"\033[31mErro ao processar a solicitação TCP: {e}\033[0m")
     finally:
         client.close()
-        print("\033[33mConexão TCP encerrada.\033[0m")
 
 
 def controle_tcp():
@@ -262,7 +279,7 @@ def controle_tcp():
         _socket.listen(4096)
         while True:
             client, addr = _socket.accept()
-            print(f"Conexão recebida de {addr}")
+            # print(f"Conexão recebida de {addr}")
             start_new_thread(servico_tcp, (client,))
     except Exception as e:
         print(f"Erro no controle TCP: {e}")
@@ -289,6 +306,7 @@ def menu_interativo(udp_client):
         opcao = input("\033[36mEscolha uma opção: \033[0m")
 
         mensagem = None 
+        imagens = list_directory_images(diretorio)
 
         if opcao == "1": 
             senha = input("\033[36mDigite sua senha: \033[0m")
@@ -298,15 +316,38 @@ def menu_interativo(udp_client):
         elif opcao == "2": 
             mensagem = listar_imagens()
 
-        elif opcao == "3": 
-            hash_imagem = input("\033[36mDigite o hash da imagem para baixar: \033[0m")
-            ip_cliente = input("\033[36mDigite o IP do cliente: \033[0m")
-            porta_cliente = int(input("\033[36mDigite a porta TCP do cliente: \033[0m"))
+        elif opcao == "3":
+            # Solicita a lista de imagens ao servidor
+            imagens_disponiveis = enviar_receber_udp(udp_client, listar_imagens())
+
+            if not imagens_disponiveis:
+                print("\033[31mNenhuma imagem disponível para baixar.\033[0m")
+                continue
+
+            # Solicita ao usuário o número da imagem desejada
+            try:
+                num_imagem = int(input("\033[36mDigite o número da imagem para baixar: \033[0m"))
+            except ValueError:
+                print("\033[31mEntrada inválida. Digite um número válido.\033[0m")
+                continue
+
+            # Valida o número da imagem
+            imagem_selecionada = next((img for img in imagens_disponiveis if img["index"] == num_imagem), None)
+            if not imagem_selecionada:
+                print("\033[31mNúmero inválido. Tente novamente.\033[0m")
+                continue
+
+            # Extrai os detalhes da imagem selecionada
+            hash_imagem = imagem_selecionada["md5"]
+            ip_porta = imagem_selecionada["ips_portas"][0]  # Pega o primeiro IP:PORTA disponível
+            ip_cliente, porta_cliente = ip_porta.split(":")
+            porta_cliente = int(porta_cliente)
+
+            # Faz o download da imagem via TCP
             baixar_imagem_tcp(hash_imagem, ip_cliente, porta_cliente)
 
         elif opcao == "4":  
             senha = input("\033[36mDigite sua senha: \033[0m")
-            imagens = list_directory_images(diretorio)
             mensagem = atualizar_registro(senha, porta_tcp, imagens)
 
         elif opcao == "5":  
@@ -314,7 +355,8 @@ def menu_interativo(udp_client):
             mensagem = remover_registro(senha, porta_tcp)
 
         elif opcao == "6":  
-            enviar_receber_udp(udp_client, remover_registro(senha_escolhida, porta_tcp))
+            if senha_escolhida:
+              enviar_receber_udp(udp_client, remover_registro(senha_escolhida, porta_tcp))
             print("\033[33mEncerrando o cliente...\033[0m")
             udp_client.close()
             sys.exit()

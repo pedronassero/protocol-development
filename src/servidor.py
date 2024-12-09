@@ -110,14 +110,33 @@ def handle_list(client_address, server):
             server.sendto("No images available.".encode(), client_address)
             return
 
+        # Lista consolidada para criar uma única mensagem
+        response_list = []
+
         for addr, images in available_images.items():
             tcp_port = online_clients.get(addr, {}).get('port', 'Unknown')
+            client_info = f"{addr[0]}:{tcp_port}"  # Formato IP:PORTA
 
             for image_info in images:
-                message = f"Client: {addr}, TCP Port: {tcp_port}, MD5: {image_info['md5']}, Name: {image_info['name']}"
-                server.sendto(message.encode(), client_address)
+                md5 = image_info['md5']
+                name = image_info['name']
 
-        server.sendto("↑ Available images ↑".encode(), client_address)
+                # Verificar se já existe uma entrada para essa imagem no response_list
+                existing_entry = next((entry for entry in response_list if entry.startswith(f"{md5},{name}")), None)
+
+                if existing_entry:
+                    # Adiciona o cliente (IP:PORTA) na entrada existente
+                    updated_entry = f"{existing_entry},{client_info}"
+                    response_list[response_list.index(existing_entry)] = updated_entry
+                else:
+                    # Cria uma nova entrada no formato MD5,NOME,IP1:PORTA1,...
+                    response_list.append(f"{md5},{name},{client_info}")
+
+        # Concatena as entradas em uma única string separada por ponto e vírgula
+        response_message = ";".join(response_list)
+
+        # Envia a resposta consolidada
+        server.sendto(response_message.encode(), client_address)
         server.sendto("END".encode(), client_address)
 
     except Exception as e:
