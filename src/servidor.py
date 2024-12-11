@@ -1,7 +1,6 @@
 from socket import *
 import threading
 import hashlib
-import json
 
 online_clients = {}
 available_images = {}
@@ -51,6 +50,12 @@ def handle_register(message, client_address, server):
 
 
 def handle_update(message, client_address, server):
+    """
+    A função recebe uma mensagem do cliente, verifica se o formato é válido e autentica o cliente comparando a senha fornecida 
+    com a armazenada para o endereço IP. Em seguida, processa as informações das imagens enviadas, adicionando apenas aquelas que 
+    ainda não estão registradas. Se a imagem já existir, informa no console. Por fim, a função 
+    envia uma resposta confirmando o número de novas imagens registradas ou avisando que não há novas imagens para adicionar.
+    """
     values = message.split(" ")
     if len(values) < 4:
         response = '\033[31mERR INVALID_MESSAGE_FORMAT\033[0m'
@@ -105,37 +110,37 @@ def handle_update(message, client_address, server):
 
 
 def handle_list(client_address, server):
+    """
+    A função envia uma lista das imagens disponíveis para transferência para o cliente que fez a requisição. 
+    Percorre todas as imagens disponíveis associadas aos endereços IP dos clientes e monta uma lista de respostas no formato `MD5,NOME,IP:PORTA`. 
+    Se uma imagem já estiver na lista de resposta, adiciona o cliente associado à imagem existente. Por fim, concatena todas as entradas em uma única string,
+    envia a mensagem ao cliente.
+    """
     try:
         if not available_images:
             server.sendto("No images available.".encode(), client_address)
             return
 
-        # Lista consolidada para criar uma única mensagem
         response_list = []
 
         for addr, images in available_images.items():
             tcp_port = online_clients.get(addr, {}).get('port', 'Unknown')
-            client_info = f"{addr[0]}:{tcp_port}"  # Formato IP:PORTA
+            client_info = f"{addr[0]}:{tcp_port}"
 
             for image_info in images:
                 md5 = image_info['md5']
                 name = image_info['name']
 
-                # Verificar se já existe uma entrada para essa imagem no response_list
                 existing_entry = next((entry for entry in response_list if entry.startswith(f"{md5},{name}")), None)
 
                 if existing_entry:
-                    # Adiciona o cliente (IP:PORTA) na entrada existente
                     updated_entry = f"{existing_entry},{client_info}"
                     response_list[response_list.index(existing_entry)] = updated_entry
                 else:
-                    # Cria uma nova entrada no formato MD5,NOME,IP1:PORTA1,...
                     response_list.append(f"{md5},{name},{client_info}")
 
-        # Concatena as entradas em uma única string separada por ponto e vírgula
         response_message = ";".join(response_list)
 
-        # Envia a resposta consolidada
         server.sendto(response_message.encode(), client_address)
         server.sendto("END".encode(), client_address)
 
@@ -144,6 +149,12 @@ def handle_list(client_address, server):
 
 
 def handle_end(message, client_address, server):
+    """
+    A função trata a finalização da conexão de um cliente com o servidor. Autentica o cliente comparando a senha fornecida 
+    com a senha armazenada para o endereço IP do cliente. Se a senha não corresponder, retorna um erro de autenticação. Se a autenticação 
+    for bem-sucedida, remove o cliente das listas `online_clients` e `available_images`, indicando que o cliente foi desconectado e suas 
+    imagens não estão mais disponíveis.
+    """
     values = message.split(" ")
     if len(values) < 3: 
         response = '\033[31mERR INVALID_MESSAGE_FORMAT\033[0m'
